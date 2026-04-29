@@ -1,10 +1,10 @@
 streamlit
 yt-dlp
+numpy==1.26.4
 opencv-python-headless==4.8.1.78
-ultralytics
 gspread
 google-auth
 google-auth-oauthlib
 oauth2client
-numpy==1.26.4
 pytesseract
+ultralytics

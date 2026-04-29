@@ -1,5 +1,8 @@
 import cv2
 
+# fallback safety (prevents silent crashes in some builds)
+if cv2.__version__ is None:
+    raise ImportError("OpenCV failed to load correctly")
 
 # ===============================
 # 🎯 FRAME QUALITY CHECKS

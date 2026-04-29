@@ -8,3 +8,5 @@ google-auth
 google-auth-oauthlib
 oauth2client
 pytesseract
+easyocr
+Pillow

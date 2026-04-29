@@ -10,3 +10,4 @@ oauth2client
 pytesseract
 easyocr
 Pillow
+beautifulsoup4

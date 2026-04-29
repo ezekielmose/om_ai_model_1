@@ -1,4 +1,4 @@
-import yt_dlp
+import yt-dlp
 import os
 import uuid
 

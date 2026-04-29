@@ -2,7 +2,7 @@ import streamlit as st
 from main import run_pipeline
 from services.instagram_finder_v2 import find_instagram_profile
 from services.instagram_reels_scraper import get_reels_from_profile
-import yt_dlp
+import yt-dlp
 #from services.instagram_finder_v2 import find_instagram_link
 import pkgutil
 import os

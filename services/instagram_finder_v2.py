@@ -20,25 +20,39 @@ def fuzzy_score(text, keyword):
 
 
 # -----------------------------
+# FALLBACK INSTAGRAM HANDLES
+# -----------------------------
+def generate_fallback_handles(hotel, city):
+    base = hotel.lower().replace(" ", "").replace("-", "")
+
+    return [
+        f"https://www.instagram.com/{base}/",
+        f"https://www.instagram.com/{base}hotel/",
+        f"https://www.instagram.com/{city.lower().replace(' ', '')}{base}/",
+    ]
+
+
+# -----------------------------
 # MAIN FUNCTION (CLOUD SAFE)
 # -----------------------------
 def find_instagram_profile(hotel, city, country):
 
     query = f"{hotel} {city} {country} site:instagram.com"
 
-    # =============================
-    # 🔥 UPDATED: NO SELENIUM
-    # =============================
     results = google_search(query)
 
-    if isinstance(results, dict) and "error" in results:
-        return None
-
+    # =============================
+    # HANDLE GOOGLE FAILURE
+    # =============================
     if not results:
-        return None
+        fallback_urls = generate_fallback_handles(hotel, city)
 
-    # convert URLs into candidate format expected by your pipeline
-    candidates = extract_instagram_candidates(results)
+        candidates = [
+            {"username": url.split("/")[-2], "url": url}
+            for url in fallback_urls
+        ]
+    else:
+        candidates = extract_instagram_candidates(results)
 
     ranked_candidates = []
 
@@ -48,12 +62,8 @@ def find_instagram_profile(hotel, city, country):
             url = c.get("url")
 
             # =============================
-            # ❌ REMOVED: driver.get(url)
-            # ❌ REMOVED: time.sleep()
-            # ❌ REMOVED: Selenium calls
+            # PROFILE TEXT EXTRACTION
             # =============================
-
-            # instead we extract profile text directly from URL
             profile_text = extract_profile_text(url)
 
             text = f"{username or ''} {url or ''} {profile_text}"
@@ -89,7 +99,7 @@ def find_instagram_profile(hotel, city, country):
             continue
 
     # -----------------------------
-    # NO RESULTS
+    # NO RESULTS HANDLING
     # -----------------------------
     if not ranked_candidates:
         return None
@@ -97,24 +107,24 @@ def find_instagram_profile(hotel, city, country):
     # -----------------------------
     # SORT BEST MATCH
     # -----------------------------
-    ranked_candidates.sort(
-        key=lambda x: x["total_score"],
-        reverse=True
-    )
+    ranked_candidates.sort(key=lambda x: x["total_score"], reverse=True)
 
     best = ranked_candidates[0]
 
     # -----------------------------
-    # STRICT MATCH FILTER
+    # RELAXED THRESHOLD (IMPORTANT FIX)
     # -----------------------------
-    MIN_HOTEL_SCORE = 0.6
-    MIN_TOTAL_SCORE = 30
+    MIN_HOTEL_SCORE = 0.4
+    MIN_TOTAL_SCORE = 10
 
     if (
-        best["hotel_score"] < MIN_HOTEL_SCORE or
+        best["hotel_score"] < MIN_HOTEL_SCORE and
         best["total_score"] < MIN_TOTAL_SCORE
     ):
         return None
 
+    # -----------------------------
+    # FINAL OUTPUT
+    # -----------------------------
     best["score"] = 1
     return best

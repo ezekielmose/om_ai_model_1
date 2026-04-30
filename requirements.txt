@@ -27,3 +27,5 @@ oauth2client
 # Web scraping
 beautifulsoup4
 requests
+
+rapidfuzz

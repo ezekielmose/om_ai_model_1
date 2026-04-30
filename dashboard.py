@@ -122,7 +122,7 @@ if menu == "Hotel Profiles & Reels Analysis":
     # -----------------------------
     # TITLE
     # -----------------------------
-    st.title("🏨 Smart Instagram Profile Finder")
+    st.title("Hotel Profiles and Reels Analyzer")
     st.write("Find the best matching Instagram profile for a hotel.")
 
     # -----------------------------

@@ -1,14 +1,29 @@
-import time
-from utils.driver import get_driver
+import requests
+from bs4 import BeautifulSoup
 
 
 def google_search(query: str):
-    driver = get_driver(headless=False)
+    try:
+        url = f"https://www.google.com/search?q={query}"
 
-    url = f"https://www.google.com/search?q={query}"
-    driver.get(url)
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
 
-    # 🔥 IMPORTANT: mimic human behavior
-    time.sleep(5)
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-    return driver
+        links = []
+
+        for a in soup.find_all("a"):
+            href = a.get("href")
+            if href and "instagram.com" in href:
+                links.append(href)
+
+        return links[:5]
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "results": []
+        }

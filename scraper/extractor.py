@@ -1,6 +1,6 @@
 import re
 import time
-from selenium.webdriver.common.by import By
+#from selenium.webdriver.common.by import By
 from urllib.parse import urlparse
 
 

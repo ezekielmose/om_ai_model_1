@@ -7,10 +7,6 @@ import yt_dlp
 import pkgutil
 import os
 
-st = __import__("streamlit")
-
-st.write("FILES IN ROOT:", os.listdir())
-st.write("yt_dlp installed:", pkgutil.find_loader("yt_dlp") is not None)
 
 # ===============================
 # PAGE CONFIG

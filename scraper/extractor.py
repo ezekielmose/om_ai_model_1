@@ -1,118 +1,79 @@
-import re
-import time
-#from selenium.webdriver.common.by import By
-from urllib.parse import urlparse
+from bs4 import BeautifulSoup
 
 
-# -----------------------------
-# VALID PROFILE CHECK
-# -----------------------------
-def is_valid_profile(url: str):
-    if not url:
-        return False
+# ===============================
+# EXTRACT INSTAGRAM LINKS
+# ===============================
+def extract_instagram_candidates(results):
+    """
+    Converts Google search results into Instagram profile candidates.
+    Now works WITHOUT Selenium.
+    """
 
-    if "instagram.com" not in url:
-        return False
+    candidates = []
 
-    blocked = [
-        "/p/", "/reel/", "/tv/",
-        "/explore/", "/accounts/", "/stories/"
-    ]
+    if not results:
+        return []
 
-    if any(b in url for b in blocked):
-        return False
+    # if results already come as URLs
+    if isinstance(results, list):
+        for url in results:
+            if "instagram.com" in url:
+                username = url.rstrip("/").split("/")[-1]
 
-    path = urlparse(url).path.strip("/")
-    if path == "":
-        return False
+                candidates.append({
+                    "username": username,
+                    "url": url
+                })
 
-    return True
+    # fallback for dict responses
+    elif isinstance(results, dict):
+        for url in results.get("results", []):
+            if "instagram.com" in url:
+                username = url.rstrip("/").split("/")[-1]
+
+                candidates.append({
+                    "username": username,
+                    "url": url
+                })
+
+    return candidates
 
 
-# -----------------------------
-# USERNAME EXTRACTOR
-# -----------------------------
-def extract_username(url: str):
+# ===============================
+# PROFILE TEXT EXTRACTION (SAFE)
+# ===============================
+def extract_profile_text(url):
+    """
+    Cloud-safe fallback (no Selenium)
+    """
+
     try:
-        path = urlparse(url).path.strip("/")
-        return path.split("/")[0] if path else None
-    except:
-        return None
+        import requests
 
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
 
-# -----------------------------
-# GET FOLLOWERS (ROBUST)
-# -----------------------------
-def get_followers(driver):
-    try:
-        time.sleep(4)
-        page = driver.page_source.lower()
+        response = requests.get(url, headers=headers, timeout=10)
 
-        match = re.search(r'([\d,.]+[km]?)\s+followers', page)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        if not match:
-            return 0
+        # Instagram blocks most text, so we return meta fallback
+        title = soup.title.string if soup.title else ""
 
-        value = match.group(1).replace(",", "").strip().lower()
+        return title or ""
 
-        if "m" in value:
-            return float(value.replace("m", "")) * 1_000_000
-        if "k" in value:
-            return float(value.replace("k", "")) * 1_000
-
-        return float(value)
-
-    except Exception as e:
-        print("Follower extraction error:", e)
-        return 0
-
-
-# -----------------------------
-# NEW: EXTRACT PROFILE TEXT
-# -----------------------------
-def extract_profile_text(driver):
-    try:
-        time.sleep(3)
-
-        # Use full page source (contains name + bio)
-        page = driver.page_source.lower()
-
-        return page
-
-    except Exception as e:
-        print("Profile text extraction error:", e)
+    except Exception:
         return ""
 
 
-# -----------------------------
-# GOOGLE RESULTS → CANDIDATES
-# -----------------------------
-def extract_instagram_candidates(driver, limit=5):
-    links = driver.find_elements(By.CSS_SELECTOR, "#search a")
+# ===============================
+# FOLLOWER EXTRACTION (SAFE FALLBACK)
+# ===============================
+def get_followers(url):
+    """
+    Instagram hides followers in JS → fallback only
+    """
 
-    results = []
-
-    for a in links:
-        href = a.get_attribute("href")
-
-        if not href:
-            continue
-
-        if "google.com" in href:
-            continue
-
-        if "/url?q=" in href:
-            href = href.split("/url?q=")[1].split("&")[0]
-
-        if is_valid_profile(href):
-            username = extract_username(href)
-
-            results.append({
-                "url": href,
-                "username": username
-            })
-
-        if len(results) >= limit:
-            break
-
-    return results
+    return 0

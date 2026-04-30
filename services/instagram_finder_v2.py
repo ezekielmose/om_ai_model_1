@@ -20,13 +20,25 @@ def fuzzy_score(text, keyword):
 
 
 # -----------------------------
-# MAIN FUNCTION
+# MAIN FUNCTION (CLOUD SAFE)
 # -----------------------------
 def find_instagram_profile(hotel, city, country):
+
     query = f"{hotel} {city} {country} site:instagram.com"
 
-    driver = google_search(query)
-    candidates = extract_instagram_candidates(driver)
+    # =============================
+    # 🔥 UPDATED: NO SELENIUM
+    # =============================
+    results = google_search(query)
+
+    if isinstance(results, dict) and "error" in results:
+        return None
+
+    if not results:
+        return None
+
+    # convert URLs into candidate format expected by your pipeline
+    candidates = extract_instagram_candidates(results)
 
     ranked_candidates = []
 
@@ -35,10 +47,14 @@ def find_instagram_profile(hotel, city, country):
             username = c.get("username")
             url = c.get("url")
 
-            driver.get(url)
-            time.sleep(4)
+            # =============================
+            # ❌ REMOVED: driver.get(url)
+            # ❌ REMOVED: time.sleep()
+            # ❌ REMOVED: Selenium calls
+            # =============================
 
-            profile_text = extract_profile_text(driver)
+            # instead we extract profile text directly from URL
+            profile_text = extract_profile_text(url)
 
             text = f"{username or ''} {url or ''} {profile_text}"
 
@@ -49,19 +65,19 @@ def find_instagram_profile(hotel, city, country):
             city_score = fuzzy_score(text, city)
             country_score = fuzzy_score(text, country)
 
-            followers = get_followers(driver)
+            followers = get_followers(url)
 
             total_score = (
-                hotel_score * 60 +     # strongest signal
+                hotel_score * 60 +
                 city_score * 25 +
                 country_score * 15 +
-                (followers / 1000)
+                (followers / 1000 if followers else 0)
             )
 
             ranked_candidates.append({
                 "username": username,
                 "url": url,
-                "followers": int(followers),
+                "followers": int(followers or 0),
                 "hotel_score": round(hotel_score, 2),
                 "city_score": round(city_score, 2),
                 "country_score": round(country_score, 2),
@@ -71,8 +87,6 @@ def find_instagram_profile(hotel, city, country):
         except Exception as e:
             print("Error:", e)
             continue
-
-    driver.quit()
 
     # -----------------------------
     # NO RESULTS
@@ -91,7 +105,7 @@ def find_instagram_profile(hotel, city, country):
     best = ranked_candidates[0]
 
     # -----------------------------
-    # 🔥 STRICT MATCH FILTER
+    # STRICT MATCH FILTER
     # -----------------------------
     MIN_HOTEL_SCORE = 0.6
     MIN_TOTAL_SCORE = 30
@@ -102,7 +116,5 @@ def find_instagram_profile(hotel, city, country):
     ):
         return None
 
-    # ✅ VALID MATCH
     best["score"] = 1
-
     return best

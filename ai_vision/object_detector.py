@@ -1,11 +1,20 @@
-from ultralytics import YOLO
-import cv2
+# ===============================
+# 🔐 SAFE (LAZY) IMPORTS
+# ===============================
+def get_yolo_model():
+    try:
+        from ultralytics import YOLO
+        return YOLO("yolov8n.pt")  # lightweight model
+    except Exception as e:
+        raise ImportError(f"YOLO failed to load: {e}")
 
 
-# ===============================
-# 🤖 LOAD MODEL
-# ===============================
-model = YOLO("yolov8n.pt")  # lightweight model (fast)
+def get_cv2():
+    try:
+        import cv2
+        return cv2
+    except Exception as e:
+        raise ImportError(f"OpenCV failed to load: {e}")
 
 
 # ===============================
@@ -27,7 +36,7 @@ HOTEL_OBJECTS = {
 # ===============================
 # 🧠 DETECT OBJECTS IN FRAME
 # ===============================
-def detect_objects(frame, conf_threshold=0.4):
+def detect_objects(frame, model, conf_threshold=0.4):
 
     results = model(frame, verbose=False)[0]
 
@@ -54,11 +63,24 @@ def detect_objects(frame, conf_threshold=0.4):
 # ===============================
 def analyze_scene_objects(frames):
 
+    try:
+        model = get_yolo_model()
+    except Exception as e:
+        print("⚠️ YOLO not available:", e)
+        return {
+            "hotel_elements": [],
+            "has_hotel": False
+        }
+
     scene_objects = []
 
     for frame in frames:
-        objects = detect_objects(frame)
-        scene_objects.extend(objects)
+        try:
+            objects = detect_objects(frame, model)
+            scene_objects.extend(objects)
+        except Exception as e:
+            print("⚠️ Frame processing failed:", e)
+            continue
 
     # remove duplicates
     scene_objects = list(set(scene_objects))

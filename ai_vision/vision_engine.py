@@ -1,20 +1,49 @@
+# ===============================
+# 🔐 SAFE IMPORTS
+# ===============================
 from ai_vision.object_detector import analyze_scene_objects
 import requests
 import base64
-import cv2
 import json
 
 
+def get_cv2():
+    try:
+        import cv2
+        return cv2
+    except Exception as e:
+        raise ImportError(f"OpenCV failed to load: {e}")
+
+
+# ===============================
+# 🖼 ENCODE FRAME SAFELY
+# ===============================
 def encode_frame(frame):
-    _, buffer = cv2.imencode(".jpg", frame)
-    return base64.b64encode(buffer).decode("utf-8")
+    try:
+        cv2 = get_cv2()
+        success, buffer = cv2.imencode(".jpg", frame)
+
+        if not success:
+            return None
+
+        return base64.b64encode(buffer).decode("utf-8")
+
+    except Exception as e:
+        print("⚠️ Frame encoding failed:", e)
+        return None
 
 
+# ===============================
+# 🎞 FRAME SAMPLING
+# ===============================
 def pick_diverse_frames(frames, num=5):
+    if not frames:
+        return []
+
     if len(frames) <= num:
         return frames
 
-    step = len(frames) // num
+    step = max(1, len(frames) // num)
     return [frames[i] for i in range(0, len(frames), step)][:num]
 
 
@@ -23,13 +52,40 @@ def pick_diverse_frames(frames, num=5):
 # ===============================
 def analyze_scene(frames):
 
+    if not frames:
+        return {
+            "analysis": "no frames provided",
+            "quality_rating": 0,
+            "hotel_elements": [],
+            "has_hotel": False
+        }
+
     selected_frames = pick_diverse_frames(frames, 5)
 
-    # 🔥 REAL OBJECT DETECTION (NO LLaVA DEPENDENCY)
-    yolo_result = analyze_scene_objects(selected_frames)
+    # ===============================
+    # 🤖 YOLO OBJECT DETECTION (SAFE)
+    # ===============================
+    try:
+        yolo_result = analyze_scene_objects(selected_frames)
+    except Exception as e:
+        print("⚠️ YOLO analysis failed:", e)
+        yolo_result = {
+            "hotel_elements": [],
+            "has_hotel": False
+        }
 
-    images = [encode_frame(f) for f in selected_frames]
+    # ===============================
+    # 🖼 ENCODE IMAGES (SAFE)
+    # ===============================
+    images = []
+    for f in selected_frames:
+        encoded = encode_frame(f)
+        if encoded:
+            images.append(encoded)
 
+    # ===============================
+    # 🧠 PROMPT
+    # ===============================
     prompt = """
 You are a hotel scene analyzer.
 
@@ -55,10 +111,14 @@ OUTPUT JSON:
         "options": {"temperature": 0.1}
     }
 
+    # ===============================
+    # 🌐 API CALL (SAFE)
+    # ===============================
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",
-            json=payload
+            json=payload,
+            timeout=30
         )
 
         result = response.json()
@@ -66,23 +126,25 @@ OUTPUT JSON:
 
         try:
             parsed = json.loads(text)
-        except:
+        except Exception:
             parsed = {
                 "analysis": text,
                 "quality_rating": 3
             }
 
-        # 🔥 FORCE OBJECT DATA INTO RESULT
+        # attach detection results
         parsed["hotel_elements"] = yolo_result["hotel_elements"]
         parsed["has_hotel"] = yolo_result["has_hotel"]
 
         return parsed
 
     except Exception as e:
+        print("⚠️ Vision API failed:", e)
+
         return {
-            "analysis": "error",
+            "analysis": "AI service unavailable",
             "quality_rating": 0,
-            "hotel_elements": [],
-            "has_hotel": False,
+            "hotel_elements": yolo_result["hotel_elements"],
+            "has_hotel": yolo_result["has_hotel"],
             "issues": [str(e)]
         }

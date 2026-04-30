@@ -1,13 +1,34 @@
-import cv2
-import numpy as np
-import pytesseract
+# ===============================
+# 🔐 SAFE (LAZY) IMPORTS
+# ===============================
+def get_cv2():
+    try:
+        import cv2
+        return cv2
+    except Exception as e:
+        raise ImportError(f"OpenCV failed to load: {e}")
+
+
+def get_numpy():
+    try:
+        import numpy as np
+        return np
+    except Exception as e:
+        raise ImportError(f"NumPy failed to load: {e}")
+
+
+def get_pytesseract():
+    try:
+        import pytesseract
+        return pytesseract
+    except Exception as e:
+        raise ImportError(f"Tesseract failed to load: {e}")
 
 
 # ===============================
 # 📊 FRAME QUALITY CHECK
 # ===============================
-def analyze_frame_quality(frame):
-
+def analyze_frame_quality(frame, cv2, np):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
@@ -22,25 +43,23 @@ def analyze_frame_quality(frame):
 # ===============================
 # 🧠 OCR TEXT DETECTION
 # ===============================
-def detect_text_overlays(frame):
-
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-    text = pytesseract.image_to_string(gray)
-
-    return len(text.strip()) > 5
+def detect_text_overlays(frame, cv2, pytesseract):
+    try:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        text = pytesseract.image_to_string(gray)
+        return len(text.strip()) > 5
+    except Exception:
+        return False  # fallback if OCR fails
 
 
 # ===============================
 # 🎞 MOTION DETECTION
 # ===============================
-def detect_static_frames(prev_frame, current_frame):
-
+def detect_static_frames(prev_frame, current_frame, cv2, np):
     prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
     curr_gray = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
 
     diff = cv2.absdiff(prev_gray, curr_gray)
-
     motion_score = np.mean(diff)
 
     return motion_score
@@ -50,7 +69,6 @@ def detect_static_frames(prev_frame, current_frame):
 # 🚨 HARD FAIL GATE
 # ===============================
 def apply_hard_fail_gate(score, issues):
-
     critical_failures = [
         "text_overlay_detected",
         "watermark",
@@ -59,7 +77,7 @@ def apply_hard_fail_gate(score, issues):
         "not_vertical_9_16",
         "shaky_or_blurry_video",
         "blank_frame",
-        "static_images_detected"  # ✅ updated name
+        "static_images_detected"
     ]
 
     if any(issue in issues for issue in critical_failures):
@@ -72,6 +90,20 @@ def apply_hard_fail_gate(score, issues):
 # 🎥 VIDEO COMPLIANCE ANALYZER
 # ===============================
 def analyze_video_compliance(video_path):
+
+    # 🔐 load dependencies safely
+    try:
+        cv2 = get_cv2()
+        np = get_numpy()
+    except Exception as e:
+        print("⚠️ Core CV dependencies missing:", e)
+        return {"score": 0, "issues": ["cv_dependencies_failed"]}
+
+    try:
+        pytesseract = get_pytesseract()
+    except Exception as e:
+        print("⚠️ OCR unavailable:", e)
+        pytesseract = None  # allow fallback
 
     cap = cv2.VideoCapture(video_path)
 
@@ -87,40 +119,38 @@ def analyze_video_compliance(video_path):
     issues = []
 
     has_text_overlay = False
-
-    # 🔥 MOTION VARIABLES
     prev_frame = None
     low_motion_count = 0
 
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-
     vertical_ratio = height / width if width != 0 else 0
 
     # ===============================
     # 🎞 FRAME SAMPLING LOOP
     # ===============================
     while frame_count < 30:
-
         ret, frame = cap.read()
         if not ret:
             break
 
-        # 📊 QUALITY
-        metrics = analyze_frame_quality(frame)
-        blur_values.append(metrics["blur_score"])
-        brightness_values.append(metrics["brightness"])
+        try:
+            metrics = analyze_frame_quality(frame, cv2, np)
+            blur_values.append(metrics["blur_score"])
+            brightness_values.append(metrics["brightness"])
 
-        # 🧠 OCR
-        if detect_text_overlays(frame):
-            has_text_overlay = True
+            # OCR (only if available)
+            if pytesseract and detect_text_overlays(frame, cv2, pytesseract):
+                has_text_overlay = True
 
-        # 🎞 MOTION CHECK
-        if prev_frame is not None:
-            motion = detect_static_frames(prev_frame, frame)
+            # motion detection
+            if prev_frame is not None:
+                motion = detect_static_frames(prev_frame, frame, cv2, np)
+                if motion < 2:
+                    low_motion_count += 1
 
-            if motion < 2:
-                low_motion_count += 1
+        except Exception as e:
+            print("⚠️ Frame processing error:", e)
 
         prev_frame = frame
         frame_count += 1
@@ -155,7 +185,7 @@ def analyze_video_compliance(video_path):
         issues.append("text_overlay_detected")
 
     # ===============================
-    # ❌ STATIC IMAGE RULE (COUNT-BASED ✅)
+    # ❌ STATIC IMAGE RULE
     # ===============================
     if low_motion_count > 10:
         issues.append("static_images_detected")
@@ -180,7 +210,6 @@ def analyze_video_compliance(video_path):
     if "text_overlay_detected" in issues:
         score = min(score, 2.5)
 
-    # 🚨 STATIC IMAGE = HARD REJECTION
     if "static_images_detected" in issues:
         score = 0
 
@@ -188,7 +217,6 @@ def analyze_video_compliance(video_path):
     # 🚨 HARD FAIL GATE
     # ===============================
     score = apply_hard_fail_gate(score, issues)
-
     score = max(0, min(5, score))
 
     return {

@@ -113,15 +113,12 @@ menu = st.sidebar.radio(
 
 
 # ===============================
-# MODULE 1 (UPDATED WITH AUTO FILL)
+# MODULE 1 (FIXED - HOTEL PROFILES)
 # ===============================
 if menu == "Hotel Profiles & Reels Analysis":
 
     import pandas as pd
 
-    # -----------------------------
-    # TITLE
-    # -----------------------------
     st.title("Hotel Profiles and Reels Analyzer")
     st.write("Find the best matching Instagram profile for a hotel.")
 
@@ -130,31 +127,21 @@ if menu == "Hotel Profiles & Reels Analysis":
     # -----------------------------
     SHEET_ID = "1gh2QMj4vngL-JLf6SPmWvjSuCgl9uItTAMteY3acVNg"
     SHEET_GID = "204054788"
-
     SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
 
-    # -----------------------------
-    # LOAD SHEET
-    # -----------------------------
     @st.cache_data
     def load_sheet():
         return pd.read_csv(SHEET_URL, dtype=str)
 
-    # -----------------------------
-    # CLEAN ID FUNCTION
-    # -----------------------------
     def clean_id(value):
         return str(value).strip().lower() if value else ""
 
     # -----------------------------
-    # AUTO FILL SECTION
+    # AUTO FILL
     # -----------------------------
     st.subheader("⚡ Auto Fill from Item ID")
 
-    item_id = st.text_input(
-        "Item ID",
-        placeholder="e.g. 846e9ee4-e5e4-434d-b6ac-ef67c301b3e8"
-    )
+    item_id = st.text_input("Item ID", placeholder="e.g. 846e9ee4-e5e4-434d-b6ac-ef67c301b3e8")
 
     if st.button("⚡ Auto Fill"):
 
@@ -162,7 +149,6 @@ if menu == "Hotel Profiles & Reels Analysis":
             try:
                 df = load_sheet()
 
-                # Column B = Item ID
                 id_column = df.iloc[:, 1].apply(clean_id)
                 input_id = clean_id(item_id)
 
@@ -174,39 +160,23 @@ if menu == "Hotel Profiles & Reels Analysis":
                     st.session_state.country = str(match.iloc[0, 4]).strip()
 
                     st.success("✅ Auto-filled successfully!")
-
                 else:
                     st.error("❌ Item ID not found in sheet.")
 
             except Exception as e:
                 st.error(f"Error loading sheet: {e}")
-
         else:
             st.warning("⚠️ Please enter an Item ID.")
 
     # -----------------------------
     # INPUT FIELDS
     # -----------------------------
-    hotel_name = st.text_input(
-        "Hotel Name",
-        value=st.session_state.get("hotel_name", ""),
-        placeholder="e.g. Sweets Ijdoornlaanbrug"
-    )
-
-    city = st.text_input(
-        "City",
-        value=st.session_state.get("city", ""),
-        placeholder="e.g. Amsterdam"
-    )
-
-    country = st.text_input(
-        "Country",
-        value=st.session_state.get("country", ""),
-        placeholder="e.g. Netherlands"
-    )
+    hotel_name = st.text_input("Hotel Name", value=st.session_state.get("hotel_name", ""))
+    city = st.text_input("City", value=st.session_state.get("city", ""))
+    country = st.text_input("Country", value=st.session_state.get("country", ""))
 
     # -----------------------------
-    # INSTAGRAM SEARCH
+    # INSTAGRAM SEARCH (FIXED)
     # -----------------------------
     if st.button("Instagram Page"):
 
@@ -214,43 +184,58 @@ if menu == "Hotel Profiles & Reels Analysis":
             st.warning("Please fill Hotel Name, City and Country")
 
         else:
-            with st.spinner("Finding Instagram profile using AI matching..."):
+            progress = st.progress(0)
+            status = st.empty()
+
+            try:
+                status.text("🔎 Searching Instagram profiles...")
+                progress.progress(20)
+
                 result = find_instagram_profile(hotel_name, city, country)
 
-            if result:
-                result["instagram"] = result.get("url")
+                progress.progress(60)
+                status.text("🧠 Ranking best match...")
 
-            st.session_state.instagram_result = result
-            st.session_state.reels_data = None
-            st.session_state.reel_analysis = {}
+                st.session_state.instagram_result = result
+
+                progress.progress(100)
+                status.text("✅ Done")
+
+            except Exception as e:
+                st.session_state.instagram_result = None
+                st.error(f"❌ Error: {str(e)}")
 
     # -----------------------------
-    # DISPLAY RESULT
+    # DISPLAY RESULT (FIXED)
     # -----------------------------
-    if st.session_state.instagram_result:
+    result = st.session_state.instagram_result
 
-        result = st.session_state.instagram_result
+    if result:
 
-        if result and result.get("instagram"):
+        st.success("🎯 Instagram Match Found")
 
-            st.success("Instagram Found")
+        username = result.get("username")
+        url = result.get("url")
 
-            st.markdown(f"[Open Profile]({result['instagram']})")
-            st.caption(f"Username: {result.get('username', '')}")
+        st.markdown(f"### 👤 Username: {username or 'N/A'}")
 
-            username = result.get("username") or result["instagram"].rstrip("/").split("/")[-1]
+        if url:
+            st.markdown(f"[🔗 Open Profile]({url})")
 
-        else:
-            st.error("No Instagram page found")
+        # -----------------------------
+        # FETCH REELS
+        # -----------------------------
+        if username:
 
-            if st.button("Fetch Reels"):
+            if st.button("📽 Fetch Reels"):
 
                 with st.spinner("Fetching reels..."):
                     reels_data = get_reels_from_profile(username)
 
                 st.session_state.reels_data = reels_data
 
-        
+    else:
+        st.info("No Instagram profile found yet. Run search first.")
 
     # -----------------------------
     # DISPLAY REELS
@@ -319,13 +304,12 @@ if menu == "Hotel Profiles & Reels Analysis":
                         st.error("❌ Issues")
                         for issue in result.get("issues", []):
                             if isinstance(issue, list):
-                                for sub_issue in issue:
-                                    st.write(f"- {sub_issue}")
+                                for sub in issue:
+                                    st.write(f"- {sub}")
                             else:
                                 st.write(f"- {issue}")
 
                     else:
-
                         st.success("✅ Approved Reel")
 
                         positives = []
@@ -338,28 +322,18 @@ if menu == "Hotel Profiles & Reels Analysis":
                         unique_elements = list(set([e for e in elements if e]))
 
                         if unique_elements:
-                            positives.append(
-                                "Showcases hotel experience: " + ", ".join(unique_elements)
-                            )
+                            positives.append("Shows hotel experience: " + ", ".join(unique_elements))
 
-                        for i, scene in enumerate(results, 1):
-                            analysis = (scene.get("analysis") or "").strip()
-                            if analysis:
-                                positives.append(f"Scene {i}: {analysis}")
-
-                        full_text = " ".join(
-                            [(scene.get("analysis") or "").lower() for scene in results]
-                        )
+                        full_text = " ".join([(scene.get("analysis") or "").lower() for scene in results])
 
                         signal_map = {
                             "smooth": "Smooth camera movement",
                             "lighting": "Good lighting quality",
-                            "well lit": "Good lighting quality",
-                            "luxury": "Strong luxury/premium appeal",
-                            "premium": "Strong luxury/premium appeal",
-                            "clear": "Clear and well-framed visuals",
-                            "experience": "Clearly communicates hotel experience",
-                            "cinematic": "Cinematic visual style",
+                            "luxury": "Strong luxury appeal",
+                            "premium": "Premium feel",
+                            "clear": "Clear visuals",
+                            "experience": "Hotel experience shown",
+                            "cinematic": "Cinematic style",
                         }
 
                         for keyword, label in signal_map.items():
@@ -367,9 +341,7 @@ if menu == "Hotel Profiles & Reels Analysis":
                                 positives.append(label)
 
                         if not positives:
-                            positives.append(
-                                "Approved based on overall visual quality, clarity, and engagement signals"
-                            )
+                            positives.append("Approved based on overall quality")
 
                         st.markdown("### 🟢 Why this reel was approved")
 

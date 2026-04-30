@@ -1,19 +1,24 @@
-import cv2
+# ===============================
+# 🔐 SAFE OPENCV IMPORT (LAZY LOAD)
+# ===============================
+def get_cv2():
+    try:
+        import cv2
+        return cv2
+    except Exception as e:
+        raise ImportError(f"OpenCV failed to load: {e}")
 
-# fallback safety (prevents silent crashes in some builds)
-if cv2.__version__ is None:
-    raise ImportError("OpenCV failed to load correctly")
 
 # ===============================
 # 🎯 FRAME QUALITY CHECKS
 # ===============================
-def is_blurry(frame, threshold=100):
+def is_blurry(frame, cv2, threshold=100):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     variance = cv2.Laplacian(gray, cv2.CV_64F).var()
     return variance < threshold
 
 
-def is_too_dark(frame, threshold=40):
+def is_too_dark(frame, cv2, threshold=40):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     return gray.mean() < threshold
 
@@ -21,7 +26,7 @@ def is_too_dark(frame, threshold=40):
 # ===============================
 # 🎯 SMART FRAME SAMPLING
 # ===============================
-def sample_scene_frames(scene_frames, max_frames=3):
+def sample_scene_frames(scene_frames, cv2, max_frames=3):
     """
     Select best frames from a scene:
     - evenly spaced
@@ -38,7 +43,7 @@ def sample_scene_frames(scene_frames, max_frames=3):
     for i in range(0, len(scene_frames), step):
         frame = scene_frames[i]
 
-        if not is_blurry(frame) and not is_too_dark(frame):
+        if not is_blurry(frame, cv2) and not is_too_dark(frame, cv2):
             selected.append(frame)
 
         if len(selected) >= max_frames:
@@ -55,8 +60,17 @@ def sample_scene_frames(scene_frames, max_frames=3):
 # 🎥 MAIN SCENE EXTRACTION
 # ===============================
 def extract_scenes(video_path):
+    try:
+        cv2 = get_cv2()
+    except Exception as e:
+        print("⚠️ OpenCV not available, skipping scene detection:", e)
+        return []  # graceful fallback
 
     cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        print("⚠️ Failed to open video")
+        return []
 
     scenes = []
     current_scene = []
@@ -67,10 +81,10 @@ def extract_scenes(video_path):
     # ===============================
     # 🔧 TUNING PARAMETERS
     # ===============================
-    SCENE_THRESHOLD = 18        # sensitivity (lower = more splits)
-    MIN_SCENE_LENGTH = 15       # 🔥 prevents micro-scenes
-    MAX_SCENE_LENGTH = 120      # prevents overly long scenes
-    FRAME_SKIP = 3              # 🔥 reduces noise (process every 3rd frame)
+    SCENE_THRESHOLD = 18
+    MIN_SCENE_LENGTH = 15
+    MAX_SCENE_LENGTH = 120
+    FRAME_SKIP = 3
 
     while True:
         ret, frame = cap.read()
@@ -79,7 +93,7 @@ def extract_scenes(video_path):
 
         frame_count += 1
 
-        # 🔥 skip frames to reduce sensitivity
+        # skip frames
         if frame_count % FRAME_SKIP != 0:
             continue
 
@@ -88,13 +102,13 @@ def extract_scenes(video_path):
         if prev_frame is not None:
             diff = cv2.absdiff(prev_frame, gray).mean()
 
-            # 🎬 Scene change logic (FIXED)
+            # scene change logic
             if (
                 (diff > SCENE_THRESHOLD and len(current_scene) > MIN_SCENE_LENGTH)
                 or len(current_scene) >= MAX_SCENE_LENGTH
             ):
                 if current_scene:
-                    sampled = sample_scene_frames(current_scene)
+                    sampled = sample_scene_frames(current_scene, cv2)
                     scenes.append(sampled)
 
                 current_scene = []
@@ -102,9 +116,9 @@ def extract_scenes(video_path):
         current_scene.append(frame)
         prev_frame = gray
 
-    # 🎬 Handle last scene
+    # handle last scene
     if current_scene:
-        sampled = sample_scene_frames(current_scene)
+        sampled = sample_scene_frames(current_scene, cv2)
         scenes.append(sampled)
 
     cap.release()

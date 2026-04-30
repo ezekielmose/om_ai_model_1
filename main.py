@@ -4,13 +4,19 @@ from video_processing.scene_detector import extract_scenes
 from ai_vision.vision_engine import analyze_scene
 from sheets.google_sheets import save_reel_summary
 from ai_vision.compliance_engine import analyze_video_compliance
-import cv2
+
 
 # ✅ NEW IMPORTS FOR AIR RESOLVER
 import requests
 import re
 from bs4 import BeautifulSoup
-
+# importing Open CV as lazy loading
+def get_cv2():
+    try:
+        import cv2
+        return cv2
+    except Exception as e:
+        raise ImportError(f"OpenCV failed to load: {e}")
 
 # ===============================
 # 🌐 AIR LINK RESOLVER (UNCHANGED)

@@ -1,31 +1,20 @@
 streamlit
-
-# Video download
 yt-dlp
 
-# Core scientific stack (stable pinned)
 numpy==1.26.4
 pandas==2.2.2
 Pillow
 
-# Computer vision (stable cloud-safe)
 opencv-python-headless==4.8.1.78
 
-# Object detection
-ultralytics==8.2.0
-
-# OCR (Python-only, no system deps)
-pytesseract
-easyocr
-
-# Google Sheets
 gspread
 google-auth
 google-auth-oauthlib
 oauth2client
 
-# Web scraping
 beautifulsoup4
 requests
 
 rapidfuzz==3.6.2
+
+gunicorn
